@@ -1,8 +1,82 @@
 // API client for communicating with the Spring Boot backend
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+const isProduction = import.meta.env.PROD;
+const API_BASE_URL = import.meta.env.VITE_API_URL || (isProduction ? '' : 'http://localhost:8080');
+
+// Graceful fallback fleet when backend is not yet hosted on the public cloud
+const FALLBACK_BUSES = [
+  {
+    id: 1,
+    tripId: 1,
+    busNumber: 'BUS-101',
+    operatorName: 'Express Lines Travels',
+    busType: 'AC_SEATER',
+    totalSeats: 40,
+    active: true,
+    fare: 35.0,
+    departureTime: '08:00 AM',
+    arrivalTime: '12:30 PM',
+    duration: '4h 30m',
+    sourceCity: 'New York',
+    destinationCity: 'Boston',
+    rating: 4.8
+  },
+  {
+    id: 2,
+    tripId: 2,
+    busNumber: 'BUS-202',
+    operatorName: 'City Rider Travels',
+    busType: 'AC_SLEEPER',
+    totalSeats: 30,
+    active: true,
+    fare: 48.0,
+    departureTime: '03:30 PM',
+    arrivalTime: '08:00 PM',
+    duration: '4h 30m',
+    sourceCity: 'New York',
+    destinationCity: 'Boston',
+    rating: 4.9
+  },
+  {
+    id: 3,
+    tripId: 3,
+    busNumber: 'BUS-303',
+    operatorName: 'Royal Voyager',
+    busType: 'NON_AC_SEATER',
+    totalSeats: 44,
+    active: true,
+    fare: 24.0,
+    departureTime: '06:00 AM',
+    arrivalTime: '11:30 AM',
+    duration: '5h 30m',
+    sourceCity: 'Los Angeles',
+    destinationCity: 'San Francisco',
+    rating: 4.5
+  },
+  {
+    id: 4,
+    tripId: 4,
+    busNumber: 'BUS-404',
+    operatorName: 'Highway Star Cruiser',
+    busType: 'AC_SLEEPER',
+    totalSeats: 28,
+    active: true,
+    fare: 52.0,
+    departureTime: '11:15 PM',
+    arrivalTime: '07:00 AM',
+    duration: '7h 45m',
+    sourceCity: 'Los Angeles',
+    destinationCity: 'San Francisco',
+    rating: 4.7
+  }
+];
 
 // Helper for making requests with error handling
 async function request(endpoint, options = {}) {
+  // If in production without configured backend URL and no relative proxy, throw early
+  if (!API_BASE_URL && isProduction) {
+    throw new Error('Backend URL not configured');
+  }
+
   const url = `${API_BASE_URL}${endpoint}`;
   const config = {
     ...options,
@@ -73,25 +147,36 @@ export async function fetchBuses() {
     }
     return buses;
   } catch (err) {
-    console.warn('Failed to fetch buses from backend:', err.message);
-    throw err;
+    console.warn('Backend unavailable or not configured, using fallback bus fleet:', err.message);
+    return FALLBACK_BUSES;
   }
 }
 
 // 2. Fetch routes from MySQL
 export async function fetchRoutes() {
-  const res = await request('/api/routes');
-  return res?.data || [];
+  try {
+    const res = await request('/api/routes');
+    return res?.data || [];
+  } catch {
+    return [
+      { id: 1, sourceCity: 'New York', destinationCity: 'Boston', distanceKm: 346.0, estimatedDuration: '4h 30m' },
+      { id: 2, sourceCity: 'Los Angeles', destinationCity: 'San Francisco', distanceKm: 615.0, estimatedDuration: '6h 15m' }
+    ];
+  }
 }
 
 // 3. Search trips from MySQL
 export async function searchTrips(source, destination, date) {
-  let endpoint = `/api/trips/search?source=${encodeURIComponent(source)}&destination=${encodeURIComponent(destination)}`;
-  if (date) {
-    endpoint += `&date=${encodeURIComponent(date)}`;
+  try {
+    let endpoint = `/api/trips/search?source=${encodeURIComponent(source)}&destination=${encodeURIComponent(destination)}`;
+    if (date) {
+      endpoint += `&date=${encodeURIComponent(date)}`;
+    }
+    const res = await request(endpoint);
+    return res?.data || [];
+  } catch {
+    return [];
   }
-  const res = await request(endpoint);
-  return res?.data || [];
 }
 
 // 4. Fetch booked seats from MySQL for real interactive seat maps
