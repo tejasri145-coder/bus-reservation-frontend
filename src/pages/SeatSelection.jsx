@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Check, AlertCircle, ShieldCheck } from 'lucide-react';
 import { useBooking } from '../context/BookingContext';
+import { fetchBookedSeats } from '../services/api';
 
 export default function SeatSelection() {
   const navigate = useNavigate();
@@ -21,8 +22,27 @@ export default function SeatSelection() {
 
   // Generate seats based on bus totalSeats (e.g. 30 or 40)
   const totalSeats = selectedBus.totalSeats || 30;
-  // Pre-seed a few simulated booked seats (e.g. seats 3, 7, 14, 18)
-  const bookedSeatNumbers = [3, 7, 14, 18, 22];
+  
+  // Real booked seats from Spring Boot MySQL backend
+  const [bookedSeatNumbers, setBookedSeatNumbers] = useState([3, 7, 14, 18, 22]);
+
+  useEffect(() => {
+    async function loadBookedSeats() {
+      if (selectedBus) {
+        try {
+          const tripId = selectedBus.tripId || 1;
+          const date = searchParams.date || new Date().toISOString().split('T')[0];
+          const backendBooked = await fetchBookedSeats(tripId, date);
+          if (Array.isArray(backendBooked) && backendBooked.length > 0) {
+            setBookedSeatNumbers(backendBooked.map(Number));
+          }
+        } catch (err) {
+          console.warn('Using default seat layout:', err);
+        }
+      }
+    }
+    loadBookedSeats();
+  }, [selectedBus, searchParams.date]);
 
   const farePerSeat = selectedBus.fare || 35.0;
   const subtotal = selectedSeats.length * farePerSeat;

@@ -1,18 +1,33 @@
 import React, { useState } from 'react';
-import { X, User, Mail, Lock } from 'lucide-react';
+import { X, User, Mail, Lock, AlertCircle, Loader2 } from 'lucide-react';
 import { useBooking } from '../context/BookingContext';
 
 export default function LoginModal({ onClose }) {
-  const { loginUser } = useBooking();
+  const { loginUser, registerUser } = useBooking();
   const [isRegister, setIsRegister] = useState(false);
   const [name, setName] = useState('John Doe');
   const [email, setEmail] = useState('john@example.com');
-  const [password, setPassword] = useState('password123');
+  const [password, setPassword] = useState('user123');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    loginUser(name, email);
-    onClose();
+    setLoading(true);
+    setError('');
+
+    try {
+      if (isRegister) {
+        await registerUser({ name, email, password });
+      } else {
+        await loginUser(email, password);
+      }
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Authentication failed. Please check your credentials.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -24,6 +39,23 @@ export default function LoginModal({ onClose }) {
           <h2>{isRegister ? 'Create Account' : 'Welcome Back'}</h2>
           <p>{isRegister ? 'Sign up to manage your bus bookings easily' : 'Sign in to access your tickets and saved details'}</p>
         </div>
+
+        {error && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '10px 14px',
+            borderRadius: 8,
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            color: '#ef4444',
+            fontSize: 13,
+            marginBottom: 16
+          }}>
+            <AlertCircle size={16} />
+            <span>{error}</span>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="modal-form">
           {isRegister && (
@@ -70,8 +102,14 @@ export default function LoginModal({ onClose }) {
             </div>
           </div>
 
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: 10 }}>
-            {isRegister ? 'Create Account' : 'Sign In'}
+          <button 
+            type="submit" 
+            disabled={loading} 
+            className="btn btn-primary" 
+            style={{ width: '100%', marginTop: 10, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8 }}
+          >
+            {loading && <Loader2 size={16} className="spin-icon" />}
+            {loading ? 'Connecting...' : (isRegister ? 'Create Account' : 'Sign In')}
           </button>
 
           <p className="modal-switch-text">
@@ -79,7 +117,7 @@ export default function LoginModal({ onClose }) {
             <button
               type="button"
               className="link-btn"
-              onClick={() => setIsRegister(!isRegister)}
+              onClick={() => { setIsRegister(!isRegister); setError(''); }}
             >
               {isRegister ? 'Sign In' : 'Register Now'}
             </button>
